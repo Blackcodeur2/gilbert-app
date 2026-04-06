@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -8,7 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../../constants/theme';
 import { formatPrice } from '../../constants/config';
-import { productCategories, type Product } from '../../services/mockData';
+import { type Product } from '../../services/types';
 import { useApp } from '../../contexts/AppContext';
 import { usePublicData } from '../../hooks/useSupabaseData';
 import { getImageSource } from '../../constants/assets';
@@ -19,6 +19,12 @@ export default function ShopScreen() {
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const { addToCart, cartItemCount } = useApp();
   const { products } = usePublicData();
+
+  // Générer les catégories dynamiquement à partir des produits en base
+  const productCategories = useMemo(() => {
+    const cats = new Set(products.map(p => p.category).filter(Boolean));
+    return ['Tous', ...Array.from(cats)].sort();
+  }, [products]);
 
   const filteredProducts = selectedCategory === 'Tous'
     ? products

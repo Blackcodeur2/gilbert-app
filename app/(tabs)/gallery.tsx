@@ -3,7 +3,7 @@ import { FlashList as RealFlashList } from "@shopify/flash-list";
 const FlashList: any = RealFlashList;
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import {
   Dimensions,
   Modal,
@@ -26,7 +26,7 @@ import {
 import { getImageSource } from "../../constants/assets";
 import {
   type GalleryItem,
-} from "../../services/mockData";
+} from "../../services/types";
 import { usePublicData } from "../../hooks/useSupabaseData";
 
 const { width: SCREEN_W } = Dimensions.get("window");

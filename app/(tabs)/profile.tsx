@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-nati
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../../constants/theme';
 import { config, formatPrice, getStatusLabel } from '../../constants/config';
 import { useApp } from '../../contexts/AppContext';
@@ -179,14 +180,19 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Paramètres</Text>
             <View style={styles.menuCard}>
               {[
-                { icon: 'person', label: 'Modifier le profil', sub: 'Nom, téléphone, email' },
+                { 
+                  icon: 'person', 
+                  label: 'Modifier le profil', 
+                  sub: 'Nom, téléphone, email',
+                  onPress: () => { Haptics.selectionAsync(); router.push('/edit-profile'); }
+                },
                 { icon: 'notifications', label: 'Notifications', sub: 'Gérer les rappels' },
                 { icon: 'help-outline', label: 'Aide & Contact', sub: config.phone },
                 { icon: 'info-outline', label: 'À propos', sub: `${config.appName} v1.0` },
               ].map((item, index) => (
                 <React.Fragment key={item.label}>
                   {index > 0 ? <View style={styles.menuDivider} /> : null}
-                  <Pressable style={styles.menuRow}>
+                  <Pressable style={styles.menuRow} onPress={item.onPress}>
                     <View style={[styles.menuIcon, { backgroundColor: theme.primarySoft }]}>
                       <MaterialIcons name={item.icon as any} size={20} color={theme.primary} />
                     </View>

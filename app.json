@@ -16,14 +16,15 @@
         "foregroundImage": "./assets/images/app_logo.jpeg",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.blackcodeur2.gilbertpro"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/app_logo.jpeg"
     },
-   "plugins": [
+    "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
@@ -39,6 +40,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5a4cdc61-4f68-451e-bae6-b97dffb19f2a"
+      }
     }
   }
 }

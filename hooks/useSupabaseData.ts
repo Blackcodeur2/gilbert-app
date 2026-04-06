@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { Category, Service, Product, Banner, GalleryItem } from '../services/mockData';
+import { Category, Service, Product, Banner, GalleryItem } from '../services/types';
 
 export function usePublicData() {
   const [categories, setCategories] = useState<Category[]>([]);

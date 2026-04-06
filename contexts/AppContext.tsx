@@ -2,40 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 
-// Definition des interfaces minimales
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  imageUrl: string;
-  [key: string]: any;
-}
-export interface CartItem {
-  product: Product;
-  quantity: number;
-}
-export interface Booking {
-  id: string;
-  serviceId: string;
-  serviceName: string;
-  date: string;
-  time: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  paymentMethod?: 'cash' | 'orange_money' | 'mtn_money' | 'card';
-  paymentStatus?: 'unpaid' | 'pending' | 'paid' | 'refunded';
-  professional?: 'Samira' | 'Gilbert pro' | 'Divine';
-  notes?: string;
-  totalPrice: number;
-  createdAt: string;
-}
-export interface UserProfile {
-  id: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  avatarUrl?: string;
-  loyaltyPoints: number;
-}
+import { Product, CartItem, Booking, UserProfile } from '../services/types';
 
 interface AppContextType {
   cartItems: CartItem[];
@@ -107,7 +74,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           fullName: profileData.full_name,
           email: '', // Not in profile table by default
           phone: profileData.phone || '',
-          loyaltyPoints: 120, // Mock loyalty points
+          loyaltyPoints: profileData.loyalty_points || 0,
         });
       }
       
@@ -234,9 +201,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFavoriteServiceIds(prev => prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]);
   }, []);
 
-  // Profile Update (Mock for now since AuthContext handles it partially, but kept for interface)
-  const updateProfile = useCallback((updates: Partial<UserProfile>) => {
+  // Profile Update
+  const updateProfile = useCallback(async (updates: Partial<UserProfile>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+
+    // Mise à jour de l'état local immédiatement pour la fluidité (Optimistic)
     setProfile(prev => ({ ...prev, ...updates }));
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: updates.fullName,
+        phone: updates.phone,
+      })
+      .eq('id', session.user.id);
+
+    if (error) {
+      console.error('Error updating profile:', error);
+      // Optionnel : Revert s'il y a un error important
+    }
   }, []);
 
   const value = useMemo(() => ({

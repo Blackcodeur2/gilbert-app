@@ -8,7 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../../constants/theme';
 import { formatPrice } from '../../constants/config';
-import { type Service } from '../../services/mockData';
+import { type Service } from '../../services/types';
 import { usePublicData } from '../../hooks/useSupabaseData';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedCard';
 import { StarRating } from '../../components/ui/StarRating';
