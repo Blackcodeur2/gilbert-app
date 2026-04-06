@@ -141,6 +141,16 @@ export default function ProfileScreen() {
                         <MaterialIcons name="schedule" size={14} color={theme.textSecondary} />
                         <Text style={styles.bookingDate}>{booking.time.replace(':', 'h')}</Text>
                       </View>
+                      <View style={styles.bookingDetailsRow}>
+                        <View style={styles.detailItem}>
+                          <MaterialIcons name="person-outline" size={12} color={theme.textMuted} />
+                          <Text style={styles.detailText}>{booking.professional || 'N/A'}</Text>
+                        </View>
+                        <View style={styles.detailItem}>
+                          <MaterialIcons name="payments" size={12} color={theme.textMuted} />
+                          <Text style={styles.detailText}>{booking.paymentMethod === 'orange_money' ? 'OM' : booking.paymentMethod === 'mtn_money' ? 'MoMo' : booking.paymentMethod === 'card' ? 'Carte' : 'Cash'}</Text>
+                        </View>
+                      </View>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusColors[booking.status] + '20' }]}>
                       <View style={[styles.statusDot, { backgroundColor: statusColors[booking.status] }]} />
@@ -249,6 +259,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: theme.borderLight,
   },
   bookingPrice: { ...typography.priceSmall, color: theme.primary },
+  bookingDetailsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  detailText: { fontSize: 11, color: theme.textMuted, fontWeight: '500' },
   cancelText: { fontSize: 13, fontWeight: '600', color: theme.error },
 
   emptyState: {

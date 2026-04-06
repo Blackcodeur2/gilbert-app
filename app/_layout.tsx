@@ -7,8 +7,22 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../hooks/useAuth';
 import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import Animated, { 
+  FadeIn, 
+  FadeOut, 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  runOnJS 
+} from 'react-native-reanimated';
 import { theme } from '../constants/theme';
+import { config } from '../constants/config';
+import { useState } from 'react';
+
+// Empêche l'écran de démarrage natif de se cacher automatiquement
+SplashScreen.preventAutoHideAsync();
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -50,6 +64,56 @@ const loadStyles = StyleSheet.create({
 });
 
 export default function RootLayout() {
+  const [appIsReady, setAppIsReady] = useState(false);
+
+  useEffect(() => {
+    async function prepare() {
+      try {
+        // Empêche l'écran de démarrage natif de se cacher trop tôt
+        await SplashScreen.preventAutoHideAsync();
+        // Simuler un chargement (ex: polices, données Supabase initiales)
+        await new Promise(resolve => setTimeout(resolve, 2500));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setAppIsReady(true);
+      }
+    }
+    prepare();
+  }, []);
+
+  useEffect(() => {
+    if (appIsReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [appIsReady]);
+
+  if (!appIsReady) {
+    return (
+      <Animated.View 
+        exiting={FadeOut.duration(500)}
+        style={splashStyles.container}
+      >
+        <Animated.Image
+          source={require('../assets/images/app_logo.jpeg')}
+          style={splashStyles.logo}
+          entering={FadeIn.delay(200).duration(1000)}
+        />
+        <Animated.Text 
+          entering={FadeIn.delay(800).duration(800)}
+          style={splashStyles.tagline}
+        >
+          {config.appTagline}
+        </Animated.Text>
+        <ActivityIndicator 
+          size="small" 
+          color={theme.primary} 
+          style={{ marginTop: 50 }} 
+        />
+      </Animated.View>
+    );
+  }
+
   return (
     <AlertProvider>
       <SafeAreaProvider>
@@ -65,3 +129,32 @@ export default function RootLayout() {
     </AlertProvider>
   );
 }
+
+const splashStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.background,
+  },
+  logo: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 4,
+    borderColor: theme.primarySoft,
+  },
+  title: {
+    marginTop: 24,
+    fontSize: 28,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  tagline: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.textSecondary,
+    letterSpacing: 1.2,
+  },
+});

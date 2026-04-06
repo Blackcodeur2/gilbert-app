@@ -1,5 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { FlashList } from "@shopify/flash-list";
+import { FlashList as RealFlashList } from "@shopify/flash-list";
+const FlashList: any = RealFlashList;
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import React, { useCallback, useState } from "react";
@@ -22,11 +23,11 @@ import {
   theme,
   typography,
 } from "../../constants/theme";
+import { getImageSource } from "../../constants/assets";
 import {
-  galleryCategories,
-  galleryItems,
   type GalleryItem,
 } from "../../services/mockData";
+import { usePublicData } from "../../hooks/useSupabaseData";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const GRID_GAP = 4;
@@ -36,11 +37,14 @@ export default function GalleryScreen() {
   const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
+  const { gallery } = usePublicData();
+
+  const galleryCategories = ["Tous", ...Array.from(new Set(gallery.map(g => g.category).filter(Boolean)))];
 
   const filteredItems =
     selectedCategory === "Tous"
-      ? galleryItems
-      : galleryItems.filter((g) => g.category === selectedCategory);
+      ? gallery
+      : gallery.filter((g) => g.category === selectedCategory);
 
   const renderGalleryItem = useCallback(
     ({ item }: { item: GalleryItem }) => (
@@ -52,7 +56,7 @@ export default function GalleryScreen() {
         }}
       >
         <Image
-          source={{ uri: item.imageUrl }}
+          source={getImageSource(item.imageUrl)}
           style={styles.gridImage}
           contentFit="cover"
         />
@@ -72,7 +76,7 @@ export default function GalleryScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Notre Galerie</Text>
         <Text style={styles.headerSubtitle}>
-          {galleryItems.length} réalisations
+          {gallery.length} réalisations
         </Text>
       </View>
 
@@ -117,7 +121,7 @@ export default function GalleryScreen() {
           data={filteredItems}
           renderItem={renderGalleryItem}
           numColumns={3}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: any) => item.id}
           contentContainerStyle={{
             paddingHorizontal: spacing.lg,
             paddingBottom: insets.bottom + 16,
@@ -139,7 +143,7 @@ export default function GalleryScreen() {
           {selectedItem && (
             <View style={styles.modalContent}>
               <Image
-                source={{ uri: selectedItem.imageUrl }}
+                source={getImageSource(selectedItem.imageUrl)}
                 style={styles.modalImage}
                 contentFit="contain"
               />

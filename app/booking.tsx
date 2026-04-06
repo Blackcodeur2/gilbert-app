@@ -1,23 +1,49 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme, typography, spacing, borderRadius, shadows } from '../constants/theme';
 import { formatPrice, getDayName, formatTime } from '../constants/config';
-import { getServiceById, timeSlots } from '../services/mockData';
+import { timeSlots } from '../services/mockData';
 import { useApp } from '../contexts/AppContext';
+import { usePublicData } from '../hooks/useSupabaseData';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../services/supabase';
+import { getImageSource } from '../constants/assets';
 import * as Haptics from 'expo-haptics';
 
 export default function BookingScreen() {
   const insets = useSafeAreaInsets();
   const { serviceId } = useLocalSearchParams<{ serviceId: string }>();
   const { addBooking } = useApp();
-  const service = getServiceById(serviceId || '');
+  const { services } = usePublicData();
+  const { user } = useAuth();
+  const service = services.find(s => s.id === serviceId);
 
   const [selectedDateIndex, setSelectedDateIndex] = useState(0);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedProfessional, setSelectedProfessional] = useState<'Samira' | 'Gilbert pro' | 'Divine' | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'orange_money' | 'mtn_money' | 'card'>('cash');
+  const [notes, setNotes] = useState('');
+  const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const professionals = [
+    { id: 'Samira', name: 'Samira', specialist: 'Nail Art', imageName: 'photo_samira.jpeg' },
+    { id: 'Gilbert pro', name: 'Gilbert pro', specialist: 'Pose Gel', imageName: 'photo_gilbert.jpeg' },
+    { id: 'Divine', name: 'Divine', specialist: 'Manucure Russe', imageName: 'photo_divine.jpeg' },
+  ] as const;
+
+  const paymentMethods = [
+    { id: 'cash', name: 'Espèces', icon: 'payments' },
+    { id: 'orange_money', name: 'Orange Money', icon: 'smartphone', color: '#FF6600' },
+    { id: 'mtn_money', name: 'MTN MoMo', icon: 'smartphone', color: '#FFCC00' },
+    { id: 'card', name: 'Carte Bancaire', icon: 'credit-card' },
+  ] as const;
 
   // Generate next 14 days
   const dates = useMemo(() => {
@@ -33,14 +59,36 @@ export default function BookingScreen() {
     return result.slice(0, 10);
   }, []);
 
-  // Simulate some unavailable slots
-  const unavailableSlots = useMemo(() => {
-    const slots: string[] = [];
-    const seed = selectedDateIndex * 3;
-    if (seed % 2 === 0) slots.push('10:00', '14:30');
-    if (seed % 3 === 0) slots.push('11:00', '16:00');
-    return slots;
-  }, [selectedDateIndex]);
+  const selectedDate = dates[selectedDateIndex];
+
+  // Fetch unavailable slots from Supabase whenever the date changes
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchSlots = async () => {
+      setIsLoadingSlots(true);
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('booking_time')
+        .eq('booking_date', dateStr)
+        .neq('status', 'cancelled');
+        
+      if (isMounted) {
+        if (data) {
+          // Supabase TIME is returned as "HH:MM:SS" but our UI uses "HH:MM"
+          const bookedTimes = data.map(b => b.booking_time.substring(0, 5));
+          setUnavailableSlots(bookedTimes);
+        } else {
+          setUnavailableSlots([]);
+        }
+        setIsLoadingSlots(false);
+      }
+    };
+    
+    fetchSlots();
+    return () => { isMounted = false; };
+  }, [selectedDateIndex, selectedDate]);
 
   if (!service) {
     return (
@@ -55,29 +103,71 @@ export default function BookingScreen() {
     );
   }
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedTime) {
       Alert.alert('Attention', 'Veuillez sélectionner un créneau horaire.');
       return;
     }
+    if (!selectedProfessional) {
+      Alert.alert('Attention', 'Veuillez choisir un professionnel.');
+      return;
+    }
+    if (!user) {
+      Alert.alert('Connexion requise', 'Vous devez être connecté pour réserver.', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Se connecter', onPress: () => router.push('/login') }
+      ]);
+      return;
+    }
+
     const selectedDate = dates[selectedDateIndex];
-    addBooking({
+    
+    // Simulation de paiement mobile si nécessaire
+    if (selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money') {
+      setIsProcessingPayment(true);
+      // Simuler un délai de traitement
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setIsProcessingPayment(false);
+      
+      const confirmed = await new Promise(resolve => {
+        Alert.alert(
+          'Confirmation de paiement',
+          `Voulez-vous simuler le paiement de ${formatPrice(service.price)} via ${selectedPaymentMethod === 'orange_money' ? 'Orange Money' : 'MTN MoMo'} ?`,
+          [
+            { text: 'Annuler', onPress: () => resolve(false), style: 'cancel' },
+            { text: 'Confirmer le paiement', onPress: () => resolve(true) }
+          ]
+        );
+      });
+      
+      if (!confirmed) return;
+    }
+
+    const success = await addBooking({
       serviceId: service.id,
       serviceName: service.name,
       date: selectedDate.toISOString().split('T')[0],
       time: selectedTime,
       status: 'pending',
+      paymentMethod: selectedPaymentMethod,
+      paymentStatus: (selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money') ? 'paid' : 'unpaid',
+      professional: selectedProfessional,
+      notes: notes,
       totalPrice: service.price,
     });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
-      'Réservation confirmée ! ✨',
-      `${service.name}\n${selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} à ${formatTime(selectedTime)}\n\nVous recevrez une confirmation par SMS.`,
-      [{ text: 'Parfait', onPress: () => router.dismiss() }]
-    );
-  };
 
-  const selectedDate = dates[selectedDateIndex];
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Réservation confirmée ! ✨',
+        `${service.name}\n${selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} à ${formatTime(selectedTime)}\n\nVous recevrez une confirmation par SMS.`,
+        [{ text: 'Parfait', onPress: () => router.dismiss() }]
+      );
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Erreur', 'Impossible de confirmer la réservation pour le moment.');
+    }
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -155,7 +245,10 @@ export default function BookingScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choisir un créneau</Text>
           <View style={styles.timeGrid}>
-            {timeSlots.map(slot => {
+            {isLoadingSlots ? (
+              <Text style={{ color: theme.textSecondary }}>Vérification des disponibilités...</Text>
+            ) : (
+              timeSlots.map(slot => {
               const isUnavailable = unavailableSlots.includes(slot);
               const isSelected = selectedTime === slot;
               return (
@@ -185,8 +278,86 @@ export default function BookingScreen() {
                   </Text>
                 </Pressable>
               );
+            })
+            )}
+          </View>
+        </View>
+
+        {/* Professional Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Choisir un professionnel</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }}>
+            {professionals.map((prof) => {
+              const isSelected = selectedProfessional === prof.id;
+              return (
+                <Pressable
+                  key={prof.id}
+                  style={[styles.profCard, isSelected && styles.profCardActive]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedProfessional(prof.id);
+                  }}
+                >
+                  <View style={[styles.profAvatar, isSelected && styles.profAvatarActive]}>
+                    {prof.imageName ? (
+                      <Image 
+                        source={getImageSource(prof.imageName)} 
+                        style={styles.profAvatarImg} 
+                        contentFit="cover" 
+                      />
+                    ) : (
+                      <MaterialIcons name="person" size={24} color={isSelected ? theme.textOnPrimary : theme.textMuted} />
+                    )}
+                  </View>
+                  <Text style={[styles.profName, isSelected && styles.profTextActive]}>{prof.name}</Text>
+                  <Text style={[styles.profSpecialist, isSelected && styles.profTextActive]}>{prof.specialist}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Payment Method Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mode de paiement</Text>
+          <View style={styles.paymentGrid}>
+            {paymentMethods.map((method) => {
+              const isSelected = selectedPaymentMethod === method.id;
+              return (
+                <Pressable
+                  key={method.id}
+                  style={[styles.paymentCard, isSelected && styles.paymentCardActive]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedPaymentMethod(method.id);
+                  }}
+                >
+                  <MaterialIcons 
+                    name={method.icon as any} 
+                    size={24} 
+                    color={isSelected ? theme.textOnPrimary : (('color' in method ? method.color : undefined) || theme.textSecondary)} 
+                  />
+                  <Text style={[styles.paymentMethodName, isSelected && styles.paymentTextActive]}>{method.name}</Text>
+                  {isSelected && <MaterialIcons name="check-circle" size={18} color={theme.textOnPrimary} style={styles.checkIcon} />}
+                </Pressable>
+              );
             })}
           </View>
+        </View>
+
+        {/* Notes */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notes particulières (facultatif)</Text>
+          <TextInput
+            style={styles.notesInput}
+            placeholder="Ex: Précisions sur votre pose, allergies, etc."
+            placeholderTextColor={theme.textMuted}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
         </View>
 
         {/* Summary */}
@@ -212,6 +383,18 @@ export default function BookingScreen() {
               </View>
               <View style={styles.divider} />
               <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Professionnel</Text>
+                <Text style={styles.summaryValue}>{selectedProfessional || 'Non sélectionné'}</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Paiement</Text>
+                <Text style={styles.summaryValue}>
+                  {paymentMethods.find(m => m.id === selectedPaymentMethod)?.name}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Durée</Text>
                 <Text style={styles.summaryValue}>{service.durationMinutes} minutes</Text>
               </View>
@@ -228,11 +411,18 @@ export default function BookingScreen() {
       {/* Bottom CTA */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable
-          style={[styles.confirmBtn, !selectedTime && styles.confirmBtnDisabled]}
-          onPress={selectedTime ? handleConfirm : undefined}
+          style={[styles.confirmBtn, (!selectedTime || !selectedProfessional || isProcessingPayment) && styles.confirmBtnDisabled]}
+          onPress={(selectedTime && selectedProfessional && !isProcessingPayment) ? handleConfirm : undefined}
+          disabled={!selectedTime || !selectedProfessional || isProcessingPayment}
         >
-          <MaterialIcons name="check-circle" size={22} color={theme.textOnPrimary} />
-          <Text style={styles.confirmBtnText}>Confirmer la réservation</Text>
+          {isProcessingPayment ? (
+            <ActivityIndicator color={theme.textOnPrimary} />
+          ) : (
+            <>
+              <MaterialIcons name="check-circle" size={22} color={theme.textOnPrimary} />
+              <Text style={styles.confirmBtnText}>Confirmer la réservation</Text>
+            </>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>
@@ -322,4 +512,89 @@ const styles = StyleSheet.create({
   },
   confirmBtnDisabled: { backgroundColor: theme.textMuted },
   confirmBtnText: { ...typography.button, color: theme.textOnPrimary },
+  
+  profCard: {
+    width: 120,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: theme.surface,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    alignItems: 'center',
+    gap: 4,
+  },
+  profCardActive: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
+  },
+  profAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: theme.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+    overflow: 'hidden',
+  },
+  profAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  profAvatarActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  profName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  profSpecialist: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  profTextActive: {
+    color: theme.textOnPrimary,
+  },
+
+  paymentGrid: {
+    gap: spacing.sm,
+  },
+  paymentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: theme.surface,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    gap: spacing.md,
+  },
+  paymentCardActive: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
+  },
+  paymentMethodName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.textPrimary,
+  },
+  paymentTextActive: {
+    color: theme.textOnPrimary,
+  },
+  checkIcon: {
+    marginLeft: 8,
+  },
+
+  notesInput: {
+    backgroundColor: theme.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    padding: spacing.lg,
+    fontSize: 14,
+    color: theme.textPrimary,
+    minHeight: 100,
+  },
 });

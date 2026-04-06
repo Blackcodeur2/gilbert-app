@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../services/supabase';
 
 export interface AuthUser {
   id: string;
@@ -20,101 +20,84 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_KEY = 'gilbertpro_auth_user';
-
-// Mock credentials
-const MOCK_USERS: Array<{ email: string; password: string; fullName: string; phone: string }> = [
-  { email: 'test@example.com', password: '123456', fullName: 'Marie Kouassi', phone: '+225 07 12 34 56 78' },
-  { email: 'admin@gilbertpro.ci', password: 'admin123', fullName: 'Gilbert Admin', phone: '+225 07 07 07 07 07' },
-];
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const saved = await AsyncStorage.getItem(AUTH_KEY);
-        if (saved) setUser(JSON.parse(saved));
-      } catch {} finally {
-        setIsLoading(false);
+  const fetchProfile = async (userId: string, email: string) => {
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (data) {
+        setUser({ id: userId, email: email, fullName: data.full_name, phone: data.phone || '' });
+      } else {
+        setUser({ id: userId, email: email, fullName: '', phone: '' });
       }
-    })();
+    } catch {
+       setUser({ id: userId, email: email, fullName: '', phone: '' });
+    }
+  };
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchProfile(session.user.id, session.user.email || '');
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchProfile(session.user.id, session.user.email || '');
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (user) {
-      AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user));
-    } else {
-      AsyncStorage.removeItem(AUTH_KEY);
-    }
-  }, [user]);
-
   const login = useCallback(async (email: string, password: string) => {
-    await new Promise(res => setTimeout(res, 800));
-    const found = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-    if (found) {
-      const authUser: AuthUser = {
-        id: `user-${Date.now()}`,
-        email: found.email,
-        fullName: found.fullName,
-        phone: found.phone,
-      };
-      setUser(authUser);
-      return { success: true };
-    }
-    // Allow any registration to work as login with mock
-    const registered = await AsyncStorage.getItem('gilbertpro_registered_users');
-    if (registered) {
-      const users = JSON.parse(registered) as typeof MOCK_USERS;
-      const found2 = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-      if (found2) {
-        const authUser: AuthUser = {
-          id: `user-${Date.now()}`,
-          email: found2.email,
-          fullName: found2.fullName,
-          phone: found2.phone,
-        };
-        setUser(authUser);
-        return { success: true };
-      }
-    }
-    return { success: false, error: 'Email ou mot de passe incorrect' };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, error: 'Email ou mot de passe incorrect' };
+    return { success: true };
   }, []);
 
   const register = useCallback(async (fullName: string, email: string, phone: string, password: string) => {
-    await new Promise(res => setTimeout(res, 1000));
-    // Check duplicate
-    const allMock = [...MOCK_USERS];
-    const registered = await AsyncStorage.getItem('gilbertpro_registered_users');
-    if (registered) {
-      allMock.push(...JSON.parse(registered));
-    }
-    if (allMock.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-      return { success: false, error: 'Cet email est déjà utilisé' };
-    }
-    // Save new user
-    const newUsers = registered ? JSON.parse(registered) : [];
-    newUsers.push({ email, password, fullName, phone });
-    await AsyncStorage.setItem('gilbertpro_registered_users', JSON.stringify(newUsers));
-    const authUser: AuthUser = {
-      id: `user-${Date.now()}`,
-      email,
-      fullName,
-      phone,
-    };
-    setUser(authUser);
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+          phone: phone,
+        }
+      }
+    });
+    
+    if (error) return { success: false, error: error.message };
+    
     return { success: true };
   }, []);
 
   const logout = useCallback(async () => {
-    setUser(null);
+    await supabase.auth.signOut();
   }, []);
 
-  const updateUser = useCallback((updates: Partial<AuthUser>) => {
+  const updateUser = useCallback(async (updates: Partial<AuthUser>) => {
+    if (!user) return;
+    
     setUser(prev => prev ? { ...prev, ...updates } : null);
-  }, []);
+    
+    const profileUpdates: any = {};
+    if (updates.fullName) profileUpdates.full_name = updates.fullName;
+    if (updates.phone) profileUpdates.phone = updates.phone;
+    
+    if (Object.keys(profileUpdates).length > 0) {
+      await supabase.from('profiles').update(profileUpdates).eq('id', user.id);
+    }
+  }, [user]);
 
   const value = useMemo(() => ({
     user,

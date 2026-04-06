@@ -1,9 +1,41 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  CartItem, Booking, UserProfile, Product,
-  defaultProfile, sampleBookings,
-} from '../services/mockData';
+import { supabase } from '../services/supabase';
+
+// Definition des interfaces minimales
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  imageUrl: string;
+  [key: string]: any;
+}
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+export interface Booking {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  paymentMethod?: 'cash' | 'orange_money' | 'mtn_money' | 'card';
+  paymentStatus?: 'unpaid' | 'pending' | 'paid' | 'refunded';
+  professional?: 'Samira' | 'Gilbert pro' | 'Divine';
+  notes?: string;
+  totalPrice: number;
+  createdAt: string;
+}
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  avatarUrl?: string;
+  loyaltyPoints: number;
+}
 
 interface AppContextType {
   cartItems: CartItem[];
@@ -15,8 +47,8 @@ interface AppContextType {
   cartItemCount: number;
 
   bookings: Booking[];
-  addBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => void;
-  cancelBooking: (bookingId: string) => void;
+  addBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<boolean>;
+  cancelBooking: (bookingId: string) => Promise<void>;
 
   favoriteServiceIds: string[];
   toggleFavoriteService: (serviceId: string) => void;
@@ -29,42 +61,101 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
   cart: 'gilbertpro_cart',
-  bookings: 'gilbertpro_bookings',
   favorites: 'gilbertpro_favorites',
-  profile: 'gilbertpro_profile',
+};
+
+const defaultProfile: UserProfile = {
+  id: 'guest',
+  fullName: 'Invité',
+  email: '',
+  phone: '',
+  loyaltyPoints: 0,
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>(sampleBookings);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [favoriteServiceIds, setFavoriteServiceIds] = useState<string[]>([]);
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
 
-  // Load from storage
+  // Load local storage
   useEffect(() => {
     (async () => {
       try {
-        const [cartData, bookingsData, favData, profileData] = await Promise.all([
+        const [cartData, favData] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.cart),
-          AsyncStorage.getItem(STORAGE_KEYS.bookings),
           AsyncStorage.getItem(STORAGE_KEYS.favorites),
-          AsyncStorage.getItem(STORAGE_KEYS.profile),
         ]);
         if (cartData) setCartItems(JSON.parse(cartData));
-        if (bookingsData) setBookings(JSON.parse(bookingsData));
         if (favData) setFavoriteServiceIds(JSON.parse(favData));
-        if (profileData) setProfile(JSON.parse(profileData));
       } catch {}
     })();
   }, []);
 
-  // Persist
+  // Persist local storage constraints
   useEffect(() => { AsyncStorage.setItem(STORAGE_KEYS.cart, JSON.stringify(cartItems)); }, [cartItems]);
-  useEffect(() => { AsyncStorage.setItem(STORAGE_KEYS.bookings, JSON.stringify(bookings)); }, [bookings]);
   useEffect(() => { AsyncStorage.setItem(STORAGE_KEYS.favorites, JSON.stringify(favoriteServiceIds)); }, [favoriteServiceIds]);
-  useEffect(() => { AsyncStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(profile)); }, [profile]);
 
-  // Cart
+  // Load Bookings & Profile from Supabase
+  useEffect(() => {
+    const fetchUserData = async (userId: string) => {
+      // Profile
+      const { data: profileData } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (profileData) {
+        setProfile({
+          id: userId,
+          fullName: profileData.full_name,
+          email: '', // Not in profile table by default
+          phone: profileData.phone || '',
+          loyaltyPoints: 120, // Mock loyalty points
+        });
+      }
+      
+      // Bookings
+      const { data: bookingsData } = await supabase.from('bookings').select('*, services(name)').eq('user_id', userId).order('created_at', { ascending: false });
+      if (bookingsData) {
+        setBookings(bookingsData.map((b: any) => ({
+          id: b.id,
+          serviceId: b.service_id,
+          serviceName: b.services?.name || 'Prestation',
+          date: b.booking_date,
+          time: b.booking_time,
+          status: b.status,
+          paymentMethod: b.payment_method,
+          paymentStatus: b.payment_status,
+          professional: b.professional,
+          notes: b.notes,
+          totalPrice: b.total_price,
+          createdAt: b.created_at,
+        })));
+      }
+    };
+
+    const initAuthData = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        fetchUserData(session.user.id);
+      } else {
+        setBookings([]);
+        setProfile(defaultProfile);
+      }
+    };
+
+    initAuthData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        fetchUserData(session.user.id);
+      } else {
+        setBookings([]);
+        setProfile(defaultProfile);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Cart Logic
   const addToCart = useCallback((product: Product, quantity = 1) => {
     setCartItems(prev => {
       const existing = prev.find(item => item.product.id === product.id);
@@ -97,42 +188,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => setCartItems([]), []);
 
-  const cartTotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
-    [cartItems]
-  );
+  const cartTotal = useMemo(() => cartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0), [cartItems]);
+  const cartItemCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems]);
 
-  const cartItemCount = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
-    [cartItems]
-  );
+  // Bookings Logic
+  const addBooking = useCallback(async (booking: Omit<Booking, 'id' | 'createdAt'>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return false;
 
-  // Bookings
-  const addBooking = useCallback((booking: Omit<Booking, 'id' | 'createdAt'>) => {
-    const newBooking: Booking = {
-      ...booking,
-      id: `bk-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
+    // Optimistic UI
+    const tempId = `temp-${Date.now()}`;
+    const newBooking: Booking = { ...booking, id: tempId, createdAt: new Date().toISOString() };
     setBookings(prev => [newBooking, ...prev]);
+
+    const { data, error } = await supabase.from('bookings').insert({
+      user_id: session.user.id,
+      service_id: booking.serviceId,
+      booking_date: booking.date,
+      booking_time: booking.time,
+      payment_method: booking.paymentMethod || 'cash',
+      payment_status: booking.paymentStatus || 'unpaid',
+      professional: booking.professional,
+      notes: booking.notes,
+      total_price: booking.totalPrice,
+      status: booking.status
+    }).select().single();
+
+    if (data) {
+      setBookings(prev => prev.map(b => b.id === tempId ? { ...b, id: data.id, createdAt: data.created_at } : b));
+    } else {
+      // Revert if error
+      setBookings(prev => prev.filter(b => b.id !== tempId));
+      return false;
+    }
+    return true;
   }, []);
 
-  const cancelBooking = useCallback((bookingId: string) => {
-    setBookings(prev =>
-      prev.map(b => b.id === bookingId ? { ...b, status: 'cancelled' as const } : b)
-    );
+  const cancelBooking = useCallback(async (bookingId: string) => {
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'cancelled' as const } : b));
+    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId);
   }, []);
 
   // Favorites
   const toggleFavoriteService = useCallback((serviceId: string) => {
-    setFavoriteServiceIds(prev =>
-      prev.includes(serviceId)
-        ? prev.filter(id => id !== serviceId)
-        : [...prev, serviceId]
-    );
+    setFavoriteServiceIds(prev => prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]);
   }, []);
 
-  // Profile
+  // Profile Update (Mock for now since AuthContext handles it partially, but kept for interface)
   const updateProfile = useCallback((updates: Partial<UserProfile>) => {
     setProfile(prev => ({ ...prev, ...updates }));
   }, []);

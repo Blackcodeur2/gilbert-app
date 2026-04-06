@@ -7,10 +7,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../../constants/theme';
 import { config, formatPrice } from '../../constants/config';
-import { getFeaturedServices, getFeaturedProducts, getFeaturedGallery, getCategoryName } from '../../services/mockData';
+import { usePublicData } from '../../hooks/useSupabaseData';
 import { AnimatedCard, AnimatedFadeIn, AnimatedScaleButton } from '../../components/ui/AnimatedCard';
 import { StarRating } from '../../components/ui/StarRating';
 import { useReviews } from '../../hooks/useReviews';
+import { getImageSource } from '../../constants/assets';
 import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -18,9 +19,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { getAverageRating, getReviewCount } = useReviews();
-  const featuredServices = getFeaturedServices();
-  const featuredProducts = getFeaturedProducts();
-  const featuredGallery = getFeaturedGallery();
+  const { services, products, gallery, categories } = usePublicData();
+
+  const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || '';
+
+  const featuredServices = services.filter(s => s.isFeatured);
+  const featuredProducts = products.filter(p => p.isFeatured);
+  const featuredGallery = gallery.filter(g => g.isFeatured);
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -39,7 +44,7 @@ export default function HomeScreen() {
             }}
           >
             <Image
-              source={require('../../assets/images/hero-banner.jpg')}
+              source={getImageSource('hero-banner.jpg')}
               style={StyleSheet.absoluteFillObject}
               contentFit="cover"
             />
@@ -114,7 +119,7 @@ export default function HomeScreen() {
                   router.push(`/service-detail?id=${service.id}`);
                 }}
               >
-                <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} contentFit="cover" />
+                <Image source={getImageSource(service.imageUrl)} style={styles.serviceImage} contentFit="cover" />
                 <View style={styles.serviceInfo}>
                   <Text style={styles.serviceCat} numberOfLines={1}>
                     {getCategoryName(service.categoryId)}
@@ -165,7 +170,7 @@ export default function HomeScreen() {
                 router.push(`/product-detail?id=${product.id}`);
               }}
             >
-              <Image source={{ uri: product.imageUrl }} style={styles.productImage} contentFit="cover" />
+              <Image source={getImageSource(product.imageUrl)} style={styles.productImage} contentFit="cover" />
               <Text style={styles.productBrand}>{product.brand}</Text>
               <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
               <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
@@ -185,7 +190,7 @@ export default function HomeScreen() {
         <View style={styles.galleryGrid}>
           {featuredGallery.slice(0, 6).map((item, idx) => (
             <AnimatedCard key={item.id} index={idx} delay={750 + idx * 60} style={styles.galleryItem}>
-              <Image source={{ uri: item.imageUrl }} style={styles.galleryImage} contentFit="cover" />
+              <Image source={getImageSource(item.imageUrl)} style={styles.galleryImage} contentFit="cover" />
               <LinearGradient
                 colors={['transparent', 'rgba(45,27,46,0.6)']}
                 style={styles.galleryOverlay}

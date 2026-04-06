@@ -2,23 +2,26 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList as RealFlashList } from '@shopify/flash-list';
+const FlashList: any = RealFlashList;
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../../constants/theme';
 import { formatPrice } from '../../constants/config';
-import { services, categories, getCategoryName, type Service } from '../../services/mockData';
+import { type Service } from '../../services/mockData';
+import { usePublicData } from '../../hooks/useSupabaseData';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedCard';
 import { StarRating } from '../../components/ui/StarRating';
 import { useReviews } from '../../hooks/useReviews';
+import { getImageSource } from '../../constants/assets';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../../contexts/AppContext';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-function ServiceRow({ item, isFav, onToggleFav, avgRating, reviewCount }: {
-  item: Service; isFav: boolean; onToggleFav: () => void; avgRating: number; reviewCount: number;
+function ServiceRow({ item, categoryName, isFav, onToggleFav, avgRating, reviewCount }: {
+  item: Service; categoryName: string; isFav: boolean; onToggleFav: () => void; avgRating: number; reviewCount: number;
 }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -30,9 +33,11 @@ function ServiceRow({ item, isFav, onToggleFav, avgRating, reviewCount }: {
       onPressIn={() => { scale.value = withSpring(0.97, { damping: 15, stiffness: 300 }); }}
       onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 300 }); }}
     >
-      <Image source={{ uri: item.imageUrl }} style={styles.serviceImg} contentFit="cover" />
+      <Image source={getImageSource(item.imageUrl)} style={styles.serviceImg} contentFit="cover" />
       <View style={styles.serviceInfo}>
-        <Text style={styles.serviceCategory}>{getCategoryName(item.categoryId)}</Text>
+        <Text style={styles.serviceCategory}>
+          {categoryName}
+        </Text>
         <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
         {reviewCount > 0 ? (
           <View style={styles.ratingRow}>
@@ -67,6 +72,7 @@ export default function ServicesScreen() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const { favoriteServiceIds, toggleFavoriteService } = useApp();
   const { getAverageRating, getReviewCount } = useReviews();
+  const { services, categories } = usePublicData();
 
   const filteredServices = selectedCategory === 'all'
     ? services
@@ -74,16 +80,18 @@ export default function ServicesScreen() {
 
   const renderService = useCallback(({ item }: { item: Service }) => {
     const isFav = favoriteServiceIds.includes(item.id);
+    const categoryName = categories.find(c => c.id === item.categoryId)?.name || '';
     return (
       <ServiceRow
         item={item}
+        categoryName={categoryName}
         isFav={isFav}
         onToggleFav={() => toggleFavoriteService(item.id)}
         avgRating={getAverageRating(item.id)}
         reviewCount={getReviewCount(item.id)}
       />
     );
-  }, [favoriteServiceIds, toggleFavoriteService, getAverageRating, getReviewCount]);
+  }, [categories, favoriteServiceIds, toggleFavoriteService, getAverageRating, getReviewCount]);
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -131,7 +139,7 @@ export default function ServicesScreen() {
           data={filteredServices}
           renderItem={renderService}
           estimatedItemSize={110}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: any) => item.id}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: insets.bottom + 16 }}
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
           showsVerticalScrollIndicator={false}

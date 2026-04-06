@@ -6,12 +6,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../constants/theme';
 import { formatPrice } from '../constants/config';
-import { getServiceById, getCategoryName } from '../services/mockData';
 import { useApp } from '../contexts/AppContext';
+import { usePublicData } from '../hooks/useSupabaseData';
 import { useReviews } from '../hooks/useReviews';
 import { useAuth } from '../hooks/useAuth';
 import { AnimatedFadeIn, AnimatedScaleButton } from '../components/ui/AnimatedCard';
 import { StarRating } from '../components/ui/StarRating';
+import { getImageSource } from '../constants/assets';
 import { useAlert } from '@/template';
 import * as Haptics from 'expo-haptics';
 
@@ -22,7 +23,8 @@ export default function ServiceDetailScreen() {
   const { getReviewsForService, getAverageRating, getReviewCount, addReview, getUserReviewForService } = useReviews();
   const { user } = useAuth();
   const { showAlert } = useAlert();
-  const service = getServiceById(id || '');
+  const { services, categories } = usePublicData();
+  const service = services.find(s => s.id === id);
 
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newRating, setNewRating] = useState(5);
@@ -42,7 +44,7 @@ export default function ServiceDetailScreen() {
   }
 
   const isFav = favoriteServiceIds.includes(service.id);
-  const categoryName = getCategoryName(service.categoryId);
+  const categoryName = categories.find(c => c.id === service.categoryId)?.name || '';
   const reviews = getReviewsForService(service.id);
   const avgRating = getAverageRating(service.id);
   const reviewCount = getReviewCount(service.id);
@@ -82,7 +84,7 @@ export default function ServiceDetailScreen() {
           {/* Hero Image */}
           <AnimatedFadeIn delay={0}>
             <View style={styles.heroContainer}>
-              <Image source={{ uri: service.imageUrl }} style={styles.heroImage} contentFit="cover" />
+              <Image source={getImageSource(service.imageUrl)} style={styles.heroImage} contentFit="cover" />
               <View style={styles.heroOverlay} />
               <SafeAreaView edges={['top']} style={styles.topBar}>
                 <Pressable style={styles.iconButton} onPress={() => { Haptics.selectionAsync(); router.back(); }}>

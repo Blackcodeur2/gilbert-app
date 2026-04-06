@@ -2,19 +2,23 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList as RealFlashList } from '@shopify/flash-list';
+const FlashList: any = RealFlashList;
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../../constants/theme';
 import { formatPrice } from '../../constants/config';
-import { products, productCategories, type Product } from '../../services/mockData';
+import { productCategories, type Product } from '../../services/mockData';
 import { useApp } from '../../contexts/AppContext';
+import { usePublicData } from '../../hooks/useSupabaseData';
+import { getImageSource } from '../../constants/assets';
 import * as Haptics from 'expo-haptics';
 
 export default function ShopScreen() {
   const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const { addToCart, cartItemCount } = useApp();
+  const { products } = usePublicData();
 
   const filteredProducts = selectedCategory === 'Tous'
     ? products
@@ -36,7 +40,7 @@ export default function ShopScreen() {
         }}
       >
         <View style={styles.imageContainer}>
-          <Image source={{ uri: item.imageUrl }} style={styles.productImage} contentFit="cover" />
+          <Image source={getImageSource(item.imageUrl)} style={styles.productImage} contentFit="cover" />
           {item.isFeatured && (
             <View style={styles.featuredBadge}>
               <Text style={styles.featuredText}>VEDETTE</Text>
@@ -116,7 +120,7 @@ export default function ShopScreen() {
           renderItem={renderProduct}
           estimatedItemSize={260}
           numColumns={2}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: any) => item.id}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: insets.bottom + 16 }}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}

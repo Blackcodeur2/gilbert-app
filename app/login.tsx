@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { AnimatedFadeIn, AnimatedScaleButton } from '../components/ui/AnimatedCard';
@@ -49,6 +50,11 @@ export default function LoginScreen() {
         setError(result.error || 'Erreur de connexion');
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/');
+        }
       }
     } else {
       if (!fullName.trim() || !email.trim() || !phone.trim() || !password.trim()) {
@@ -75,6 +81,11 @@ export default function LoginScreen() {
         setError(result.error || "Erreur lors de l'inscription");
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/');
+        }
       }
     }
   };
@@ -109,19 +120,15 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Mock Login Badge */}
-            <AnimatedFadeIn delay={0}>
-              <View style={styles.mockBadge}>
-                <MaterialIcons name="science" size={14} color={theme.warning} />
-                <Text style={styles.mockBadgeText}>MOCK LOGIN</Text>
-              </View>
-            </AnimatedFadeIn>
-
             {/* Logo / Brand */}
             <AnimatedFadeIn delay={100}>
               <View style={styles.brandSection}>
                 <View style={styles.logoCircle}>
-                  <MaterialIcons name="spa" size={36} color={theme.textOnPrimary} />
+                  <Image
+                    source={require('../assets/images/app_logo.jpeg')}
+                    style={styles.brandLogo}
+                    contentFit="cover"
+                  />
                 </View>
                 <Text style={styles.brandName}>Gilbert Pro</Text>
                 <Text style={styles.brandTagline}>Salon d'Onglerie</Text>
@@ -248,18 +255,6 @@ export default function LoginScreen() {
               </View>
             </AnimatedFadeIn>
 
-            {/* Mock Credentials Hint */}
-            {mode === 'login' ? (
-              <AnimatedFadeIn delay={400}>
-                <View style={styles.hintBox}>
-                  <MaterialIcons name="info-outline" size={16} color={theme.info} />
-                  <Text style={styles.hintText}>
-                    Identifiants test : test@example.com / 123456
-                  </Text>
-                </View>
-              </AnimatedFadeIn>
-            ) : null}
-
             {/* Submit Button */}
             <AnimatedFadeIn delay={500}>
               <AnimatedScaleButton
@@ -315,26 +310,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   scrollContent: {
     paddingHorizontal: spacing.xxl,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.xxl,
     paddingBottom: spacing.xxxl,
-  },
-
-  mockBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: 6,
-    backgroundColor: theme.warningLight,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: borderRadius.full,
-    marginBottom: spacing.xl,
-  },
-  mockBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.warning,
-    letterSpacing: 1,
   },
 
   brandSection: {
@@ -342,14 +319,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxl,
   },
   logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: theme.primary,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
-    ...shadows.button,
+    ...shadows.cardElevated,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: theme.primarySoft,
+  },
+  brandLogo: {
+    width: '100%',
+    height: '100%',
   },
   brandName: {
     fontSize: 28,
@@ -392,16 +376,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  form: { gap: spacing.md, marginBottom: spacing.lg },
+  form: { gap: spacing.md, marginBottom: spacing.xl },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.surface,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1.5,
-    borderColor: theme.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
     paddingHorizontal: spacing.lg,
-    minHeight: 52,
+    minHeight: 56,
+    ...shadows.card,
   },
   inputIcon: { marginRight: spacing.md },
   input: {
@@ -409,7 +394,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: theme.textPrimary,
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
   eyeButton: {
     position: 'absolute',
@@ -417,26 +402,11 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 
-  hintBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: theme.infoLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.xl,
-  },
-  hintText: {
-    fontSize: 12,
-    color: theme.info,
-    flex: 1,
-    fontWeight: '500',
-  },
-
   submitBtn: {
     borderRadius: borderRadius.full,
     overflow: 'hidden',
     marginBottom: spacing.xl,
+    ...shadows.button,
   },
   submitGradient: {
     flexDirection: 'row',

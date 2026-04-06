@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../constants/theme';
 import { formatPrice } from '../constants/config';
 import { useApp } from '../contexts/AppContext';
+import { getImageSource } from '../constants/assets';
 import * as Haptics from 'expo-haptics';
 
 export default function CartScreen() {
@@ -93,7 +94,7 @@ export default function CartScreen() {
           >
             {cartItems.map((item) => (
               <View key={item.product.id} style={styles.cartItem}>
-                <Image source={{ uri: item.product.imageUrl }} style={styles.itemImage} contentFit="cover" />
+                <Image source={getImageSource(item.product.imageUrl)} style={styles.itemImage} contentFit="cover" />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemBrand}>{item.product.brand}</Text>
                   <Text style={styles.itemName} numberOfLines={2}>{item.product.name}</Text>

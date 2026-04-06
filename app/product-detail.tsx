@@ -6,16 +6,18 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../constants/theme';
 import { formatPrice } from '../constants/config';
-import { getProductById } from '../services/mockData';
 import { useApp } from '../contexts/AppContext';
+import { usePublicData } from '../hooks/useSupabaseData';
+import { getImageSource } from '../constants/assets';
 import * as Haptics from 'expo-haptics';
 
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addToCart } = useApp();
+  const { products } = usePublicData();
   const [quantity, setQuantity] = useState(1);
-  const product = getProductById(id || '');
+  const product = products.find(p => p.id === id);
 
   if (!product) {
     return (
@@ -54,7 +56,7 @@ export default function ProductDetailScreen() {
       >
         {/* Image */}
         <View style={styles.imageContainer}>
-          <Image source={{ uri: product.imageUrl }} style={styles.productImage} contentFit="cover" />
+          <Image source={getImageSource(product.imageUrl)} style={styles.productImage} contentFit="cover" />
           <SafeAreaView edges={['top']} style={styles.topBar}>
             <Pressable style={styles.iconBtn} onPress={() => { Haptics.selectionAsync(); router.back(); }}>
               <MaterialIcons name="arrow-back" size={24} color={theme.textPrimary} />
