@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../services/supabase';
+import { supabase, getPublicUrl } from '../services/supabase';
 
 import { Product, CartItem, Booking, UserProfile } from '../services/types';
 
@@ -75,6 +75,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           email: '', // Not in profile table by default
           phone: profileData.phone || '',
           loyaltyPoints: profileData.loyalty_points || 0,
+          avatarUrl: getPublicUrl('userprofilimage', profileData.avatar_url),
         });
       }
       
@@ -209,12 +210,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Mise à jour de l'état local immédiatement pour la fluidité (Optimistic)
     setProfile(prev => ({ ...prev, ...updates }));
 
+    const profileUpdates: any = {};
+    if (updates.fullName !== undefined) profileUpdates.full_name = updates.fullName;
+    if (updates.phone !== undefined) profileUpdates.phone = updates.phone;
+    if (updates.avatarUrl !== undefined) profileUpdates.avatar_url = updates.avatarUrl;
+
     const { error } = await supabase
       .from('profiles')
-      .update({
-        full_name: updates.fullName,
-        phone: updates.phone,
-      })
+      .update(profileUpdates)
       .eq('id', session.user.id);
 
     if (error) {

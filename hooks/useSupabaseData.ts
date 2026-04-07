@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, getPublicUrl } from '../services/supabase';
 import { Category, Service, Product, Banner, GalleryItem } from '../services/types';
 
 export function usePublicData() {
@@ -39,7 +39,7 @@ export function usePublicData() {
           description: s.description,
           price: s.price,
           durationMinutes: s.duration_minutes,
-          imageUrl: s.image_url,
+          imageUrl: getPublicUrl('servicesimages', s.image_url),
           isFeatured: s.is_featured,
         })));
       }
@@ -51,7 +51,7 @@ export function usePublicData() {
           description: p.description,
           price: p.price,
           stockQuantity: p.stock_quantity,
-          imageUrl: p.image_url,
+          imageUrl: getPublicUrl('productimages', p.image_url),
           category: p.category,
           brand: p.brand,
           isFeatured: p.is_featured,
@@ -63,7 +63,7 @@ export function usePublicData() {
           id: b.id,
           title: b.title,
           subtitle: b.subtitle,
-          imageUrl: b.image_url,
+          imageUrl: getPublicUrl('banners', b.image_url), // Assuming 'banners' bucket
           ctaLabel: b.cta_label,
         })));
       }
@@ -73,7 +73,7 @@ export function usePublicData() {
           id: g.id,
           title: g.title,
           description: g.description,
-          imageUrl: g.image_url,
+          imageUrl: getPublicUrl('galerie', g.image_url),
           category: g.category,
           isFeatured: g.is_featured,
         })));

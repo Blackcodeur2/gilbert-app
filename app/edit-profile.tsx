@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Image, TouchableOpacity } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadImage, getPublicUrl } from '../services/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -15,7 +17,28 @@ export default function EditProfileScreen() {
   const [fullName, setFullName] = useState(user?.fullName || profile.fullName);
   const [phone, setPhone] = useState(user?.phone || profile.phone);
   const [email, setEmail] = useState(user?.email || profile.email);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission refusée', 'Nous avons besoin de votre permission pour accéder à vos photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri);
+      Haptics.selectionAsync();
+    }
+  };
 
   const handleSave = async () => {
     if (!fullName.trim() || !phone.trim()) {
@@ -25,12 +48,32 @@ export default function EditProfileScreen() {
 
     setLoading(true);
     try {
+      let avatarPath = user?.avatarUrl || profile.avatarUrl;
+
+      // Si une nouvelle image a été sélectionnée, on l'uploade
+      if (selectedImage) {
+        const fileExt = selectedImage.split('.').pop();
+        const fileName = `${user?.id || 'profile'}_${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const uploadedPath = await uploadImage('userprofilimage', filePath, selectedImage);
+        if (uploadedPath) {
+          avatarPath = uploadedPath;
+        }
+      }
+
+      const updates = { 
+        fullName, 
+        phone, 
+        avatarUrl: avatarPath 
+      };
+
       // Met à jour l'état Global (qui met à jour Supabase)
-      await updateProfile({ fullName, phone });
+      await updateProfile(updates);
       
       // Met à jour l'état Auth (local)
       if (updateUser) {
-        updateUser({ fullName, phone });
+        updateUser(updates);
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -38,6 +81,7 @@ export default function EditProfileScreen() {
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error) {
+      console.error('Error in handleSave:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Erreur', 'Impossible de mettre à jour le profil');
     } finally {
@@ -61,12 +105,24 @@ export default function EditProfileScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.avatarSection}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>
-                {fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-              </Text>
-            </View>
-            <Text style={styles.changeAvatarText}>Utilisez votre nom pour l&apos;avatar</Text>
+            <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
+              <View style={styles.avatarCircle}>
+                {selectedImage || user?.avatarUrl || profile.avatarUrl ? (
+                  <Image 
+                    source={{ uri: selectedImage || user?.avatarUrl || profile.avatarUrl }} 
+                    style={styles.avatarImage} 
+                  />
+                ) : (
+                  <Text style={styles.avatarText}>
+                    {fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </Text>
+                )}
+                <View style={styles.editIconContainer}>
+                  <MaterialIcons name="photo-camera" size={20} color="#FFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.changeAvatarText}>Appuyez pour changer la photo</Text>
           </View>
 
           <View style={styles.form}>
@@ -152,6 +208,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl },
   
   avatarSection: { alignItems: 'center', marginBottom: spacing.xl },
+  avatarContainer: { position: 'relative' },
   avatarCircle: {
     width: 100,
     height: 100,
@@ -159,7 +216,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     ...shadows.card,
+  },
+  avatarImage: { width: '100%', height: '100%' },
+  editIconContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: theme.primaryDark,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: theme.background,
   },
   avatarText: { fontSize: 36, fontWeight: '700', color: theme.textOnPrimary },
   changeAvatarText: { marginTop: 12, fontSize: 13, color: theme.textMuted },

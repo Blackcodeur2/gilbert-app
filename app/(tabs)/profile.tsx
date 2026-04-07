@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -79,9 +79,13 @@ export default function ProfileScreen() {
                 colors={[theme.primary, theme.primaryDark]}
                 style={styles.avatar}
               >
-                <Text style={styles.avatarText}>
-                  {displayName.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                </Text>
+                {user?.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={styles.avatarText}>
+                    {displayName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  </Text>
+                )}
               </LinearGradient>
             </View>
             <Text style={styles.profileName}>{displayName}</Text>
@@ -226,7 +230,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   profileHeader: { alignItems: 'center', paddingVertical: spacing.xxl, paddingHorizontal: spacing.lg },
   avatarContainer: { marginBottom: spacing.md },
-  avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImage: { width: '100%', height: '100%' },
   avatarText: { fontSize: 28, fontWeight: '700', color: theme.textOnPrimary },
   profileName: { ...typography.h2, color: theme.textPrimary },
   profileEmail: { ...typography.body, color: theme.textSecondary, marginTop: 4 },

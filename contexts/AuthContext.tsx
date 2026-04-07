@@ -1,11 +1,12 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, getPublicUrl } from '../services/supabase';
 
 export interface AuthUser {
   id: string;
   email: string;
   fullName: string;
   phone: string;
+  avatarUrl?: string;
 }
 
 interface AuthContextType {
@@ -28,12 +29,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       if (data) {
-        setUser({ id: userId, email: email, fullName: data.full_name, phone: data.phone || '' });
+        setUser({ 
+          id: userId, 
+          email: email, 
+          fullName: data.full_name, 
+          phone: data.phone || '',
+          avatarUrl: getPublicUrl('userprofilimage', data.avatar_url),
+        });
       } else {
-        setUser({ id: userId, email: email, fullName: '', phone: '' });
+        setUser({ id: userId, email: email, fullName: '', phone: '', avatarUrl: '' });
       }
-    } catch {
-       setUser({ id: userId, email: email, fullName: '', phone: '' });
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+       setUser({ id: userId, email: email, fullName: '', phone: '', avatarUrl: '' });
     }
   };
 
@@ -93,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const profileUpdates: any = {};
     if (updates.fullName) profileUpdates.full_name = updates.fullName;
     if (updates.phone) profileUpdates.phone = updates.phone;
+    if (updates.avatarUrl !== undefined) profileUpdates.avatar_url = updates.avatarUrl;
     
     if (Object.keys(profileUpdates).length > 0) {
       await supabase.from('profiles').update(profileUpdates).eq('id', user.id);
