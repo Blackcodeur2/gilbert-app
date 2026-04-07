@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Plus, Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
-import Modal, { Input, Checkbox } from '../components/ui/Modal';
+import Modal, { Input, Checkbox, FileUpload } from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 
 export default function Services() {
@@ -109,8 +109,7 @@ export default function Services() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'var(--color-bg-secondary)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyItems: 'center' }}>
                          {service.image_url ? (
-                           // Just a placeholder since it could be local assets in app. Real URL would use storage public url.
-                           <ImageIcon size={20} color="var(--color-text-muted)" style={{margin: 'auto'}} />
+                           <img src={service.image_url} alt="Aperçu" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                          ) : <ImageIcon size={20} color="var(--color-text-muted)" style={{margin: 'auto'}}/>}
                       </div>
                       <div>
@@ -154,7 +153,12 @@ export default function Services() {
           </div>
 
           <Input label="Description" type="textarea" value={formData.description} onChange={(e:any) => setFormData({...formData, description: e.target.value})} />
-          <Input label="URL de l'image (Nom du fichier local ou lien Web)" value={formData.image_url} onChange={(e:any) => setFormData({...formData, image_url: e.target.value})} />
+          <FileUpload 
+            label="Image de la prestation" 
+            bucket="servicesimages" 
+            currentImage={formData.image_url} 
+            onUploadSuccess={(url: string) => setFormData({...formData, image_url: url})} 
+          />
           
           <Checkbox label="Mettre en avant sur l'accueil (Vedette)" checked={formData.is_featured} onChange={(e:any) => setFormData({...formData, is_featured: e.target.checked})} />
 
