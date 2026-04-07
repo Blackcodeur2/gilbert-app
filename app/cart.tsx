@@ -7,6 +7,8 @@ import { router } from 'expo-router';
 import { theme, typography, spacing, borderRadius, shadows } from '../constants/theme';
 import { formatPrice } from '../constants/config';
 import { useApp } from '../contexts/AppContext';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../services/supabase';
 import { getImageSource } from '../constants/assets';
 import * as Haptics from 'expo-haptics';
 
@@ -14,19 +16,46 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const { cartItems, updateCartQuantity, removeFromCart, clearCart, cartTotal, cartItemCount } = useApp();
 
-  const handleCheckout = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
-      'Commande envoyée ! 🎉',
-      `Total : ${formatPrice(cartTotal)}\n${cartItemCount} article${cartItemCount > 1 ? 's' : ''}\n\nVous serez contacté pour la livraison.`,
-      [{
-        text: 'Parfait',
-        onPress: () => {
-          clearCart();
-          router.dismiss();
-        },
-      }]
-    );
+  const { user } = useAuth();
+
+  const handleCheckout = async () => {
+    if (!user) {
+      Alert.alert('Connexion requise', 'Veuillez vous connecter pour passer commande.', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Se connecter', onPress: () => router.push('/login') }
+      ]);
+      return;
+    }
+
+    try {
+      const orderNotes = cartItems.map(item => `${item.quantity}x ${item.product.name}`).join('\n');
+      
+      const { error } = await supabase.from('bookings').insert([{
+        total_price: cartTotal,
+        booking_date: new Date().toISOString().split('T')[0],
+        booking_time: new Date().toTimeString().split(' ')[0],
+        notes: `🛍️ COMMANDE BOUTIQUE :\n${orderNotes}`,
+        status: 'pending',
+        user_id: user.id
+      }]);
+
+      if (error) throw error;
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Commande envoyée ! 🎉',
+        `Total : ${formatPrice(cartTotal)}\n${cartItemCount} article${cartItemCount > 1 ? 's' : ''}\n\nVous serez contacté pour la livraison.`,
+        [{
+          text: 'Parfait',
+          onPress: () => {
+            clearCart();
+            router.dismiss();
+          },
+        }]
+      );
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message);
+    }
   };
 
   const handleRemoveItem = (productId: string, name: string) => {
