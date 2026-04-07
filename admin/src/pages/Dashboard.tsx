@@ -19,11 +19,14 @@ export default function Dashboard() {
       const endOfDay = new Date();
       endOfDay.setHours(23, 59, 59, 999);
 
-      const { count: countToday } = await supabase
+      const { data: todayBookings } = await supabase
         .from('bookings')
-        .select('*', { count: 'exact', head: true })
+        .select('id, notes')
         .gte('created_at', startOfDay.toISOString())
         .lte('created_at', endOfDay.toISOString());
+
+      const ordersToday = todayBookings?.filter((b: any) => b.notes?.includes('COMMANDE BOUTIQUE'))?.length || 0;
+      const rdvToday = (todayBookings?.length || 0) - ordersToday;
 
       // 3. Produits en rupture (stock < 5)
       const { count: lowStockCount } = await supabase
@@ -33,7 +36,8 @@ export default function Dashboard() {
 
       return {
         revenue: totalRevenue,
-        bookingsToday: countToday || 0,
+        rdvToday: rdvToday,
+        ordersToday: ordersToday,
         lowStock: lowStockCount || 0
       };
     }
@@ -61,8 +65,12 @@ export default function Dashboard() {
           <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{formatPrice(stats?.revenue || 0)}</p>
         </div>
         <div className="card glass">
-          <h3 style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontFamily: 'var(--font-sans)' }}>Créations du Jour (Rdv & Commandes)</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats?.bookingsToday}</p>
+          <h3 style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontFamily: 'var(--font-sans)' }}>Rendez-vous du Jour</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats?.rdvToday}</p>
+        </div>
+        <div className="card glass">
+          <h3 style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontFamily: 'var(--font-sans)' }}>Commandes Boutique (Aujourd'hui)</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{stats?.ordersToday}</p>
         </div>
         <div className="card glass">
           <h3 style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem', fontFamily: 'var(--font-sans)' }}>Produits en rupture (Stock &lt; 5)</h3>
