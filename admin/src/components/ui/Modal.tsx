@@ -1,5 +1,6 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Upload } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface ModalProps {
   isOpen: boolean;
@@ -54,6 +55,65 @@ export function Input({ label, type = 'text', value, onChange, placeholder, requ
           style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', color: 'white' }}
         />
       )}
+    </div>
+  );
+}
+
+// Reusable File Upload Component
+export function FileUpload({ label, bucket, onUploadSuccess, currentImage }: any) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileChange = async (event: any) => {
+    try {
+      setUploading(true);
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      onUploadSuccess(data.publicUrl);
+    } catch (error: any) {
+      alert('Erreur lors du transfert de l\'image: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: '1rem' }}>
+      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>{label}</label>
+      
+      {currentImage ? (
+        <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <img src={currentImage} alt="Aperçu" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }} />
+          <button type="button" onClick={() => onUploadSuccess('')} className="btn" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Retirer l'image</button>
+        </div>
+      ) : null}
+
+      <div style={{ position: 'relative' }}>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          disabled={uploading}
+          style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+        />
+        <div style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-bg-primary)', border: '1px dashed var(--color-border)', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <Upload size={18} />
+          {uploading ? 'Téléchargement...' : 'Cliquer pour uploader une image'}
+        </div>
+      </div>
     </div>
   );
 }
